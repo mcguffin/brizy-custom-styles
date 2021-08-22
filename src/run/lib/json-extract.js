@@ -41,7 +41,7 @@ const generate_php = ( outfile, strings, textdomain ) => {
 		php += "__( '"+strings[i]+"', '"+textdomain+"');";
 		php += '\n';
 	}
-	fs.writeFileSync( outfile, php );
+	fs.writeFile( outfile, php, ()=>{} );
 }
 
 xt = module.exports = {

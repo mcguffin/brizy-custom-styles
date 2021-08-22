@@ -14,6 +14,7 @@
     "audit-fix": "./vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=./phpcs.ruleset.xml || exit 0",
     "postinstall": "composer install",
     "dashicons": "node ./src/run/dashicons.js",
+    "make-acf": "node ./src/run/mk-fieldgroup.js",
     "init": "mkdir -p json/acf && mkdir -p json/post-type && mkdir -p json/taxonomy && mkdir -p src/php",
     "dev": "gulp dev",
     "i18n": "node src/run/json-i18n.js brizy-custom-styles",
