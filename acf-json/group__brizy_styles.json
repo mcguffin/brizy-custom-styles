@@ -72,7 +72,7 @@
                         "class": "",
                         "id": ""
                     },
-                    "layout": "table",
+                    "layout": "block",
                     "sub_fields": [
                         {
                             "key": "field__brizy_style_color1",

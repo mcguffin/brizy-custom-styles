@@ -3,7 +3,7 @@
 /*
 Plugin Name: Brizy Custom Styles
 Plugin URI: http://wordpress.org/
-Description: Enter description here.
+Description: The missing style editor for brizy pagebuilder
 Author: mcguffin
 Version: 0.0.1
 Author URI: https://github.com/mcguffin
@@ -50,4 +50,3 @@ Core\Core::instance( __FILE__ );
 
 if ( is_admin() || defined( 'DOING_AJAX' ) ) {
 }
-

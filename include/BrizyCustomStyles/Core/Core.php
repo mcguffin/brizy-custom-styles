@@ -25,9 +25,68 @@ class Core extends Plugin {
 		add_action( 'acf/init', [ $this, 'acf_init' ] );
 		add_filter( 'acf/settings/load_json', [ $this, 'acf_load_json_path'] );
 		add_filter( 'acf/load_value/key=field__brizy_styles', [ $this, 'get_brizy_styles' ], 10, 4 );
+
+
+		add_action( 'acf/save_post', [ $this, 'acf_save_post_early' ], 5 );
 		add_action( 'acf/save_post', [ $this, 'acf_save_post' ], 15 );
+
+		add_action( 'acf/options_page/submitbox_before_major_actions', [ $this, 'submitbox_major_actions' ] );
+
+		add_action( 'acf/input/admin_head', [ $this, 'admin_head' ] );
+
 		$args = func_get_args();
 		parent::__construct( ...$args );
+	}
+
+
+	public function admin_head() {
+		// notices
+		if( ! empty($_GET['message']) && $_GET['message'] == '1000' ) {
+			acf_add_admin_notice( __('Default Styles successfully restored.', 'brizy-custom-styles'), 'success' );
+		}
+
+	}
+
+
+	public function submitbox_major_actions( $page ) {
+		if ( self::ACF_OPTIONS_POST_ID !== $page['post_id'] ) {
+			return;
+		}
+		?>
+		<div style="padding:12px;">
+			<button type="submit" value="<?php echo wp_create_nonce( 'brizy_custom_styles_reset' ); ?>" class="button button-large" id="publish" name="_reset_nonce">
+				<?php esc_html_e('Restore Brizy defaults', 'brizy-custom-styles'); ?>
+			</button>
+		</div>
+		<?php
+	}
+
+	public function acf_save_post_early( $post_id ) {
+		if ( $post_id !== Core::ACF_OPTIONS_POST_ID ) {
+			return;
+		}
+
+		remove_filter( 'acf/load_value/key=field__brizy_styles', [ $this, 'get_brizy_styles' ], 10 );
+
+		if ( isset( $_POST['_reset_nonce'] ) && wp_verify_nonce( wp_unslash( $_POST['_reset_nonce'] ), 'brizy_custom_styles_reset' ) ) {
+
+			$defaults_path = BRIZY_PLUGIN_PATH . '/public/editor-build/200-wp/defaults.json';
+
+			if ( file_exists( $defaults_path ) ) {
+
+				$defaults = json_decode( file_get_contents( $defaults_path ) );
+
+				$project = \Brizy_Editor_Project::get();
+				$project->setDataAsJson( json_encode( $defaults ) );
+				$project->setDataVersion( $project->getCurrentDataVersion() + 1 );
+				$project->getStorage()->loadStorage( $project->convertToOptionValue() );
+				acf_add_admin_notice( $this->page['updated_message'], 'success' );
+
+				wp_safe_redirect( add_query_arg( 'message', 1000 ) );
+				exit();
+//				remove_action( 'acf/save_post', [ $this, 'acf_save_post' ] );
+			}
+		}
 	}
 
 	/**
@@ -37,21 +96,27 @@ class Core extends Plugin {
 	 */
 	public function acf_save_post( $post_id ) {
 
-		if ( $post_id !== Core::ACF_OPTIONS_POST_ID ) {
-			return;
-		}
+
 		// prevent loading stlyes from brizy settings
 		remove_filter( 'acf/load_value/key=field__brizy_styles', [ $this, 'get_brizy_styles' ], 10 );
 
-		$to_object = function($style) { return (object) $style; };
 		$styles = $this->acf2brizy( get_field( 'brizy_styles', Core::ACF_OPTIONS_POST_ID, true ) );
 
 		$project = \Brizy_Editor_Project::get();
 		$data = $project->getDecodedData();
 
+		$data->styles = $styles;
+
+		$data = $this->sanitize_brizy_data( $data );
+		$project->setDataAsJson( json_encode( $data ) );
+		$project->setDataVersion( $project->getCurrentDataVersion() + 1 );
+		$project->getStorage()->loadStorage( $project->convertToOptionValue() );
+
+	}
+
+	private function sanitize_brizy_data( $data ) {
 		$foundStyle = false;
 		$firstStyle = false;
-		$data->styles = $styles;
 		foreach ( $data->styles as $style ) {
 			if ( $firstStyle === false ) {
 				$firstStyle = $style->id;
@@ -64,11 +129,7 @@ class Core extends Plugin {
 		if ( ! $foundStyle ) {
 			$data->selectedStyle = $firstStyle;
 		}
-
-		$project->setDataAsJson( json_encode( $data ) );
-		$project->setDataVersion( $project->getCurrentDataVersion() + 1 );
-		$project->getStorage()->loadStorage( $project->convertToOptionValue() );
-
+		return $data;
 	}
 
 	/**
@@ -91,6 +152,7 @@ class Core extends Plugin {
 	 *	Convert brizy style objects to ACF field values
 	 */
 	private function acf2brizy( $styles ) {
+		$to_object = function($style) { return (object) $style; };
 		return array_map( function($item) use ($to_object) {
 			$item = (object) $item;
 			$item->colorPalette = array_map( function($color,$id) {
@@ -99,6 +161,9 @@ class Core extends Plugin {
 					'hex' => $color,
 				];
 			}, $item->colorPalette, array_keys( $item->colorPalette ) );
+			if ( ! isset( $item->fontStyles ) || ! is_array( $item->fontStyles ) ) {
+				$item->fontStyles = [];
+			}
 			$item->fontStyles = array_map( $to_object, $item->fontStyles );
 			return $item;
 		}, $styles );
@@ -152,8 +217,8 @@ class Core extends Plugin {
 	 */
 	public function acf_init() {
 		acf_add_options_sub_page([
-			'page_title' => __('Custom Styles'),
-			'menu_title' => __('Custom Styles'),
+			'page_title' => __('Custom Styles', 'brizy-custom-styles' ),
+			'menu_title' => __('Custom Styles', 'brizy-custom-styles' ),
 			'capability' => 'edit_posts',
 			'position' => 50,
 			'parent_slug' => 'brizy-settings',
